@@ -10,30 +10,30 @@ simple_roc <- function(labels, scores){
 }
 
 compare_roc_curves <- function(frame, title){
-  class_ind <- which(colnames(frame) == "NON_OPERATING")
-  features <- colnames(frame)[-class_ind]
-  data <- frame[, c("NON_OPERATING", features)]
-  
+  set.seed(1)
+  train_ind <- sample(nrow(frame), floor(0.5*nrow(frame)))
+  test_ind <- (1:nrow(frame))[-train_ind]
+
   # Naive Bayes
-  X <- data[,features]
-  Y <- as.factor(data$NON_OPERATING)
-  model <- suppressWarnings(train(X, Y, 'nb', trControl=trainControl(method='cv', number=10)))
-  nb.pred <- suppressWarnings(predict(model$finalModel, X))
+  frame.factor <- frame
+  frame.factor$NON_OPERATING <- as.factor(frame$NON_OPERATING)
+  nb.model <- suppressWarnings(train(NON_OPERATING~., subset=train_ind, data=frame.factor, 'nb', trControl=trainControl(method='cv', number=10)))
+  nb.pred <- suppressWarnings(predict(nb.model$finalModel, newdata=frame.factor[test_ind,]))
   roc.nb <- simple_roc(frame[,"NON_OPERATING"], unname(nb.pred$posterior[,2]))
   auc.nb <- auc(x = roc.nb$FPR, y = roc.nb$TPR)
-  
+
   # LDA
-  lda.fit.cv <- suppressWarnings(lda(NON_OPERATING ~ ., data=data, CV=TRUE))
-  roc.lda <- simple_roc(data$NON_OPERATING, unname(lda.fit.cv$posterior[,2]))
+  lda.fit <- suppressWarnings(lda(NON_OPERATING ~ ., data=frame, subset = train_ind))
+  lda.prob <- suppressWarnings(predict(lda.fit, newdata=frame[test_ind,], type = "response"))
+  roc.lda <- simple_roc(frame$NON_OPERATING, unname(lda.prob$posterior[,2]))
   auc.lda <- auc(x = roc.lda$FPR, y = roc.lda$TPR)
-  
+    
   # GLM
-  glm.fit <- suppressWarnings(glm(NON_OPERATING ~ ., data = data, family = "binomial"))
-  glm.prob <- predict(glm.fit, data, type = "response")
-  roc.glm <- simple_roc(data$NON_OPERATING, glm.prob)
+  glm.fit <- suppressWarnings(glm(NON_OPERATING ~ ., data = frame, subset = train_ind, family = "binomial"))
+  glm.prob <- suppressWarnings(predict(glm.fit, newdata=frame[test_ind,], type = "response"))
+  roc.glm <- simple_roc(frame$NON_OPERATING, glm.prob)
   auc.glm <- auc(x = roc.glm$FPR, y = roc.glm$TPR)
   # It's interesting, that glm probabilities are quite low (<0.2), although ROC curve is not that bad 
-  
   
   # Plotting
   plot(x = roc.nb$FPR, y = roc.nb$TPR, main = title, col="green", xlab = "FPR", ylab = "TPR", type = "l", lwd=2)
@@ -72,7 +72,7 @@ merge_columns <- function(frame, columns, result_col){
 
 file.2013 <- "./data/MERGED2013_PP.csv"
 file.2012 <- "./data/MERGED2012_PP.csv"
-raw.2013 <- read.csv(file.2013, stringsAsFactors = FALSE)
+#raw.2013 <- read.csv(file.2013, stringsAsFactors = FALSE)
 #raw.2012 <- read.csv(file.2012, stringsAsFactors = FALSE)
 
 # Feature set #1 (Program percentages)
@@ -129,6 +129,23 @@ frame4.2013 <- merge_columns(frame4.2013, c( "NUM43_PUB", "NUM43_PRIV", "NUM43_P
 frame4.2013 <- merge_columns(frame4.2013, c( "NUM44_PUB", "NUM44_PRIV", "NUM44_PROG", "NUM44_OTHER"), "NUM44")
 frame4.2013 <- merge_columns(frame4.2013, c( "NUM45_PUB", "NUM45_PRIV", "NUM45_PROG", "NUM45_OTHER"), "NUM45")
 
+# TODO find out, how many null are in every column
+sum(is.na(frame4.2013$NPT4))
+sum(is.na(frame4.2013$NPT41))
+sum(is.na(frame4.2013$NPT42))
+sum(is.na(frame4.2013$NPT43))
+sum(is.na(frame4.2013$NPT44)) #3530
+sum(is.na(frame4.2013$NPT45)) #4320
+sum(is.na(frame4.2013$NUM4))
+sum(is.na(frame4.2013$NUM41))
+sum(is.na(frame4.2013$NUM42))
+sum(is.na(frame4.2013$NUM43))
+sum(is.na(frame4.2013$NUM44)) #3530
+sum(is.na(frame4.2013$NUM45)) #4320
+
+frame4.1.2013 <- frame4.2013[,c("NON_OPERATING", "NPT4", "NPT41", "NPT42", "NPT43", "NUM4", "NUM41", "NUM42", "NUM43")]
+frame4.1.2013 <- frame4.1.2013[complete.cases(frame4.1.2013),]
+
 frame4.2013 <- frame4.2013[complete.cases(frame4.2013),]
 
 # TODO Why so many NULLS? (7804 - 2654) ?
@@ -139,14 +156,12 @@ frame4.2013 <- frame4.2013[complete.cases(frame4.2013),]
 # Feature set #5 (Completion/Retention)
 #features.2013 <- c("RET_PTL4", "RET_PT4", "RET_FTL4", "RET_FT4", "C150_4", "C150_L4", "C150_4_POOLED", "C150_L4_POOLED", "D150_4", "D150_L4", "D150_4_POOLED", "D150_L4_POOLED", "C150_4_AIAN", "C150_4_NHPI", "C150_4_2MOR", "C150_4_NRA", "C150_4_API", "C150_L4_NHPI", "C150_L4_2MOR", "C150_L4_NRA", "C150_L4_POOLED_SUP", "C150_4_POOLED_SUPP", "C200_L4_POOLED_SUP", "C200_4_POOLED_SUPP")
 
-compare_roc_curves(frame1.2013, "FS#1 (Program percentages)")
-compare_roc_curves(frame2.2013, "FS#2 (NEEDS ANALYSIS)")
-compare_roc_curves(frame3.1.2013, fs3.2013, "FS#3 (Admission Rate(Ignoring NA) + Undergrads)")
-compare_roc_curves(frame3.2.2013, fs3.2013, "FS#3 (Admission Rate(NA=ave.) + Undergrads)")
-compare_roc_curves(frame4.2013, "FS#4 (Cost. >5000 NAs")
-
-
-
+compare_roc_curves(frame1.2013, "FS#1 (Program percentages. Imbalanced)")
+compare_roc_curves(frame2.2013, "FS#2 (NEEDS ANALYSIS. Imbalanced)")
+compare_roc_curves(frame3.1.2013, "FS#3 (Admission Rate(Ignoring NA) + Undergrads. Imbalanced)")
+compare_roc_curves(frame3.2.2013, "FS#3 (Admission Rate(NA=ave.) + Undergrads. Imbalanced)")
+compare_roc_curves(frame4.2013, "FS#4 (Cost. >5000 NAs. Imbalanced")
+compare_roc_curves(frame4.1.2013, "FS#4.1 (Cost. 5200 entries. Imbalanced")
 
 
 
