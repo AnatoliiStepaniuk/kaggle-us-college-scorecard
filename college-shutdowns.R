@@ -18,20 +18,20 @@ compare_roc_curves <- function(frame, title){
   frame.factor <- frame
   frame.factor$NON_OPERATING <- as.factor(frame$NON_OPERATING)
   nb.model <- suppressWarnings(train(NON_OPERATING~., subset=train_ind, data=frame.factor, 'nb', trControl=trainControl(method='cv', number=10)))
-  nb.pred <- suppressWarnings(predict(nb.model$finalModel, newdata=frame.factor[test_ind,]))
-  roc.nb <- simple_roc(frame[,"NON_OPERATING"], unname(nb.pred$posterior[,2]))
-  auc.nb <- auc(x = roc.nb$FPR, y = roc.nb$TPR)
+  nb.pred <- suppressWarnings(predict(nb.model$finalModel, newdata=frame.factor[test_ind,], ))
+  roc.nb <- simple_roc(frame[test_ind,"NON_OPERATING"], unname(nb.pred$posterior[,2]))
+  auc.nb <- auc(x = roc.nb$FPR, y = roc.nb$TPR) # TODO why roc.nb$FPR are NaNs ?
 
   # LDA
   lda.fit <- suppressWarnings(lda(NON_OPERATING ~ ., data=frame, subset = train_ind))
   lda.prob <- suppressWarnings(predict(lda.fit, newdata=frame[test_ind,], type = "response"))
-  roc.lda <- simple_roc(frame$NON_OPERATING, unname(lda.prob$posterior[,2]))
+  roc.lda <- simple_roc(frame$NON_OPERATING[test_ind], unname(lda.prob$posterior[,2]))
   auc.lda <- auc(x = roc.lda$FPR, y = roc.lda$TPR)
     
   # GLM
   glm.fit <- suppressWarnings(glm(NON_OPERATING ~ ., data = frame, subset = train_ind, family = "binomial"))
   glm.prob <- suppressWarnings(predict(glm.fit, newdata=frame[test_ind,], type = "response"))
-  roc.glm <- simple_roc(frame$NON_OPERATING, glm.prob)
+  roc.glm <- simple_roc(frame$NON_OPERATING[test_ind], glm.prob)
   auc.glm <- auc(x = roc.glm$FPR, y = roc.glm$TPR)
   # It's interesting, that glm probabilities are quite low (<0.2), although ROC curve is not that bad 
   
@@ -70,6 +70,15 @@ merge_columns <- function(frame, columns, result_col){
   return(frame)
 }
 
+get.balanced.frame <- function(frame){
+  non.operating.inds <- (1:nrow(frame))[frame$NON_OPERATING == 1]
+  operating.inds.all <- (1:nrow(frame))[!frame$NON_OPERATING == 1]
+  stopifnot(length(non.operating.inds) < length(operating.inds.all))
+  operating.inds.balanced <- operating.inds.all[1:length(non.operating.inds)]
+  frame.balanced <- frame[c(non.operating.inds, operating.inds.balanced),]
+  return(frame.balanced)
+}
+
 file.2013 <- "./data/MERGED2013_PP.csv"
 file.2012 <- "./data/MERGED2012_PP.csv"
 #raw.2013 <- read.csv(file.2013, stringsAsFactors = FALSE)
@@ -81,6 +90,7 @@ frame1.2013 <- raw.2013[,fs1.2013]
 frame1.2013$NON_OPERATING <- ifelse(raw.2013[,"CURROPER"]==0, 1, 0)
 frame1.2013[,fs1.2013] <- suppressWarnings(lapply(frame1.2013[,fs1.2013], as.numeric))
 frame1.2013 <- frame1.2013[complete.cases(frame1.2013),]
+frame1.2013 <- get.balanced.frame(frame1.2013)
 
 # Feature set #2 (EXPLORE THIS - what feature have the biggest impact?)
 fs2.2013 <- c("DISTANCEONLY", "TUITIONFEE_IN", "TUITIONFEE_OUT", "TUITFTE", "INEXPFTE", "AVGFACSAL", "PFTFAC", "PAR_ED_PCT_MS", "PAR_ED_PCT_HS", "PAR_ED_PCT_PS")
@@ -91,6 +101,7 @@ frame2.2013 <- raw.2013[,fs2.2013]
 frame2.2013$NON_OPERATING <- ifelse(raw.2013[,"CURROPER"]==0, 1, 0)
 frame2.2013[,fs2.2013] <- suppressWarnings(lapply(frame2.2013[,fs2.2013], as.numeric))
 frame2.2013 <- frame2.2013[complete.cases(frame2.2013),]
+frame2.2013 <- get.balanced.frame(frame2.2013)
 
 # Feature set #3 (Admission + Undergrads)
 fs3.2013 <- c("ADM_RATE_ALL", "UGDS")
@@ -105,6 +116,7 @@ is.adm.rate.not.null <- complete.cases(frame3.2013$ADM_RATE_ALL)
 average_adm_rate <- mean(frame3.2013$ADM_RATE_ALL[is.adm.rate.not.null])
 frame3.2013$ADM_RATE_ALL[!is.adm.rate.not.null] <- average_adm_rate
 frame3.2.2013 <- frame3.2013[complete.cases(frame3.2013),]
+frame3.2013 <- get.balanced.frame(frame3.2013)
 
 # Feature set #4 (Cost)
 fs4.2013 <- c("TUITIONFEE_PROG", "TUITIONFEE_OUT", "COSTT4_A", "NPT4_PUB", "NPT4_PRIV", "NPT4_PROG", "NPT4_OTHER", "NPT41_PUB", "NPT42_PUB", "NPT43_PUB", "NPT44_PUB", "NPT45_PUB", "NPT41_PRIV", "NPT42_PRIV", "NPT43_PRIV", "NPT44_PRIV", "NPT45_PRIV", "NPT41_PROG", "NPT42_PROG", "NPT43_PROG", "NPT44_PROG", "NPT45_PROG", "NPT41_OTHER", "NPT42_OTHER", "NPT43_OTHER", "NPT44_OTHER", "NPT45_OTHER", "NUM4_PUB", "NUM4_PRIV", "NUM4_PROG", "NUM4_OTHER", "NUM41_PUB", "NUM42_PUB", "NUM43_PUB", "NUM44_PUB", "NUM45_PUB", "NUM41_PRIV", "NUM42_PRIV", "NUM43_PRIV", "NUM44_PRIV", "NUM45_PRIV", "NUM41_PROG", "NUM42_PROG", "NUM43_PROG", "NUM44_PROG", "NUM45_PROG", "NUM41_OTHER", "NUM42_OTHER", "NUM43_OTHER", "NUM44_OTHER", "NUM45_OTHER")
@@ -145,8 +157,11 @@ sum(is.na(frame4.2013$NUM45)) #4320
 
 frame4.1.2013 <- frame4.2013[,c("NON_OPERATING", "NPT4", "NPT41", "NPT42", "NPT43", "NUM4", "NUM41", "NUM42", "NUM43")]
 frame4.1.2013 <- frame4.1.2013[complete.cases(frame4.1.2013),]
+frame4.1.2013 <- get.balanced.frame(frame4.1.2013)
 
 frame4.2013 <- frame4.2013[complete.cases(frame4.2013),]
+frame4.2013.unbalanced <- frame4.2013
+frame4.2013 <- get.balanced.frame(frame4.2013)
 
 # TODO Why so many NULLS? (7804 - 2654) ?
 
@@ -161,7 +176,7 @@ compare_roc_curves(frame2.2013, "FS#2 (NEEDS ANALYSIS. Imbalanced)")
 compare_roc_curves(frame3.1.2013, "FS#3 (Admission Rate(Ignoring NA) + Undergrads. Imbalanced)")
 compare_roc_curves(frame3.2.2013, "FS#3 (Admission Rate(NA=ave.) + Undergrads. Imbalanced)")
 compare_roc_curves(frame4.2013, "FS#4 (Cost. >5000 NAs. Imbalanced")
-compare_roc_curves(frame4.1.2013, "FS#4.1 (Cost. 5200 entries. Imbalanced")
+compare_roc_curves(frame4.1.2013, "FS#4.1 (Cost. 5200 entries.")
 
 
 
