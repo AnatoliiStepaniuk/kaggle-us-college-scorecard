@@ -81,7 +81,7 @@ get.balanced.frame <- function(frame){
 
 file.2013 <- "./data/MERGED2013_PP.csv"
 file.2012 <- "./data/MERGED2012_PP.csv"
-#raw.2013 <- read.csv(file.2013, stringsAsFactors = FALSE)
+raw.2013 <- read.csv(file.2013, stringsAsFactors = FALSE)
 #raw.2012 <- read.csv(file.2012, stringsAsFactors = FALSE)
 
 # Feature set #1 (Program percentages)
@@ -158,7 +158,17 @@ frame5.2013$INEXPFTE <- NULL
 frame5.2013 <- get.balanced.frame(frame5.2013)
 
 # Feature set #6 (Completion/Retention)
-#features.2013 <- c("RET_PTL4", "RET_PT4", "RET_FTL4", "RET_FT4", "C150_4", "C150_L4", "C150_4_POOLED", "C150_L4_POOLED", "D150_4", "D150_L4", "D150_4_POOLED", "D150_L4_POOLED", "C150_4_AIAN", "C150_4_NHPI", "C150_4_2MOR", "C150_4_NRA", "C150_4_API", "C150_L4_NHPI", "C150_L4_2MOR", "C150_L4_NRA", "C150_L4_POOLED_SUP", "C150_4_POOLED_SUPP", "C200_L4_POOLED_SUP", "C200_4_POOLED_SUPP")
+features6.2013 <- c("RET_PTL4", "RET_PT4", "RET_FTL4", "RET_FT4", "C150_4", "C150_L4", "C150_4_POOLED", "C150_L4_POOLED", "D150_4", "D150_L4", "D150_4_POOLED", "D150_L4_POOLED", "C150_4_AIAN", "C150_4_NHPI", "C150_4_2MOR", "C150_4_NRA", "C150_4_API", "C150_L4_NHPI", "C150_L4_2MOR", "C150_L4_NRA", "C150_4_POOLED_SUPP")
+frame6.2013 <- raw.2013[,features6.2013]
+frame6.2013$NON_OPERATING <- ifelse(raw.2013[,"CURROPER"]==0, 1, 0)
+frame6.2013[,features6.2013] <- suppressWarnings(lapply(frame6.2013[,features6.2013], as.numeric))
+frame6.2013 <- merge_2_columns(frame6.2013, "RET_PTL4", "RET_PT4", "RET_PT")
+frame6.2013 <- merge_2_columns(frame6.2013, "RET_FTL4", "RET_FT4", "RET_FT")
+frame6.2013 <- merge_columns(frame6.2013, c("C150_4", "C150_L4", "C150_4_POOLED", "C150_L4_POOLED", "C150_4_AIAN", "C150_4_NHPI", "C150_4_2MOR", "C150_4_NRA", "C150_4_API", "C150_L4_NHPI", "C150_L4_2MOR", "C150_L4_NRA", "C150_4_POOLED_SUPP"), "C150")
+frame6.2013 <- merge_columns(frame6.2013, c("D150_4", "D150_L4", "D150_4_POOLED", "D150_L4_POOLED"), "D150")
+frame6.2013 <- frame6.2013[complete.cases(frame6.2013),]
+frame6.2013 <- get.balanced.frame(frame6.2013)
+
 
 compare_roc_curves(frame1.2013, "FS#1 (Program percentages.)")
 compare_roc_curves(frame2.2013, "FS#2 (NEEDS ANALYSIS.)")
@@ -166,6 +176,7 @@ compare_roc_curves(frame3.1.2013, "FS#3 (Admission Rate(Ignoring NA) + Undergrad
 compare_roc_curves(frame3.2.2013, "FS#3 (Admission Rate(NA=ave.) + Undergrads.)")
 compare_roc_curves(frame4.2013, "FS#4 (Cost)")
 compare_roc_curves(frame5.2013, "FS#5 (Revenue - expenditure)")
+compare_roc_curves(frame6.2013, "FS#6 (Completion/Retention. Not much data)")
 
 
 
