@@ -9,29 +9,27 @@ simple_roc <- function(labels, scores){
   data.frame(TPR=cumsum(labels)/sum(labels), FPR=cumsum(!labels)/sum(!labels), labels)
 }
 
-compare_roc_curves <- function(frame, title){
+compare_roc_curves <- function(frame.train, frame.test, title){
   set.seed(1)
-  train_ind <- sample(nrow(frame), floor(0.5*nrow(frame)))
-  test_ind <- (1:nrow(frame))[-train_ind]
 
   # Naive Bayes
-  frame.factor <- frame
-  frame.factor$NON_OPERATING <- as.factor(frame$NON_OPERATING)
-  nb.model <- suppressWarnings(train(NON_OPERATING~., subset=train_ind, data=frame.factor, 'nb', trControl=trainControl(method='cv', number=10)))
-  nb.pred <- suppressWarnings(predict(nb.model$finalModel, newdata=frame.factor[test_ind,]))
-  roc.nb <- simple_roc(frame[test_ind,"NON_OPERATING"], unname(nb.pred$posterior[,2]))
+  frame.train.factor <- frame.train
+  frame.train.factor$NON_OPERATING <- as.factor(frame.train$NON_OPERATING)
+  nb.model <- suppressWarnings(train(NON_OPERATING~., data=frame.train.factor, 'nb', trControl=trainControl(method='cv', number=10)))
+  nb.pred <- suppressWarnings(predict(nb.model$finalModel, newdata=frame.test))
+  roc.nb <- simple_roc(frame.test$NON_OPERATING, unname(nb.pred$posterior[,2]))
   auc.nb <- auc(x = roc.nb$FPR, y = roc.nb$TPR)
 
   # LDA
-  lda.fit <- suppressWarnings(lda(NON_OPERATING ~ ., data=frame, subset = train_ind))
-  lda.prob <- suppressWarnings(predict(lda.fit, newdata=frame[test_ind,], type = "response"))
-  roc.lda <- simple_roc(frame$NON_OPERATING[test_ind], unname(lda.prob$posterior[,2]))
+  lda.fit <- suppressWarnings(lda(NON_OPERATING ~ ., data=frame.train))
+  lda.prob <- suppressWarnings(predict(lda.fit, newdata=frame.test, type = "response"))
+  roc.lda <- simple_roc(frame.test$NON_OPERATING, unname(lda.prob$posterior[,2]))
   auc.lda <- auc(x = roc.lda$FPR, y = roc.lda$TPR)
-    
+  
   # GLM
-  glm.fit <- suppressWarnings(glm(NON_OPERATING ~ ., data = frame, subset = train_ind, family = "binomial"))
-  glm.prob <- suppressWarnings(predict(glm.fit, newdata=frame[test_ind,], type = "response"))
-  roc.glm <- simple_roc(frame$NON_OPERATING[test_ind], glm.prob)
+  glm.fit <- suppressWarnings(glm(NON_OPERATING ~ ., data = frame.train, family = "binomial"))
+  glm.prob <- suppressWarnings(predict(glm.fit, newdata=frame.test, type = "response"))
+  roc.glm <- simple_roc(frame.test$NON_OPERATING, glm.prob)
   auc.glm <- auc(x = roc.glm$FPR, y = roc.glm$TPR)
   # It's interesting, that glm probabilities are quite low (<0.2), although ROC curve is not that bad 
   
@@ -40,12 +38,12 @@ compare_roc_curves <- function(frame, title){
   lines(x = roc.lda$FPR, y = roc.lda$TPR, col="red", type = "l", lwd=2)
   lines(x = roc.glm$FPR, y = roc.glm$TPR, col="blue", type = "l", lwd=2)
   
-  legend.nb <- paste("Naive Bayes. AUC=", round(auc.nb, digits = 3), sep="")
+  legend.nb <- paste("NB. AUC=", round(auc.nb, digits = 3), sep="")
   legend.lda <- paste("LDA. AUC=", round(auc.lda, digits = 3), sep="")
   legend.glm <- paste("GLM. AUC=", round(auc.glm, digits = 3), sep="")
   legend("bottomright",legend = c(legend.nb, legend.lda, legend.glm), col=c("green", "red", "blue"),lty = 1,lwd = 2,cex = 0.6, x.intersp=1)
-  
-  return(c(auc.nb, auc.lda, auc.glm))  
+  text(0.8, 0.5, paste(colnames(frame.train), collapse="\n"))
+  return(c(auc.nb, auc.lda, auc.glm))
 }
 
 merge_2_columns <- function(frame, first_col, second_col, result_col){
@@ -88,7 +86,7 @@ get_balanced_train_test_frames <- function(frame, train_balance_coef, train_test
 
 file.2013 <- "./data/MERGED2013_PP.csv"
 file.2012 <- "./data/MERGED2012_PP.csv"
-raw.2013 <- read.csv(file.2013, stringsAsFactors = FALSE)
+#raw.2013 <- read.csv(file.2013, stringsAsFactors = FALSE)
 #raw.2012 <- read.csv(file.2012, stringsAsFactors = FALSE)
 
 # Feature set #1 (Program percentages)
@@ -102,9 +100,9 @@ frame1.2013.train <- train_test_frames1.2013[[1]]
 frame1.2013.test <- train_test_frames1.2013[[2]]
 
 # Feature set #2 (EXPLORE THIS - what features have the biggest impact?)
-features2.2013 <- c("DISTANCEONLY", "TUITIONFEE_OUT", "TUITFTE", "INEXPFTE", "AVGFACSAL", "PAR_ED_PCT_MS", "PAR_ED_PCT_HS", "PAR_ED_PCT_PS")
-features2.1.2013 <- c("DISTANCEONLY", "AVGFACSAL", "PAR_ED_PCT_MS", "PAR_ED_PCT_HS", "PAR_ED_PCT_PS")
-features2.2.2013 <- c("DISTANCEONLY", "PAR_ED_PCT_MS", "PAR_ED_PCT_HS", "PAR_ED_PCT_PS")
+features2.2013 <- c("TUITIONFEE_OUT", "TUITFTE", "INEXPFTE", "AVGFACSAL", "PAR_ED_PCT_MS", "PAR_ED_PCT_HS", "PAR_ED_PCT_PS")
+features2.1.2013 <- c("AVGFACSAL", "PAR_ED_PCT_MS", "PAR_ED_PCT_HS", "PAR_ED_PCT_PS")
+features2.2.2013 <- c("PAR_ED_PCT_MS", "PAR_ED_PCT_HS", "PAR_ED_PCT_PS")
 # TODO remove - for debug only
 #frame2.2013 <- raw.2013[,c("ï.¿UNITID", "INSTNM", features2.2013)]
 #colnames(frame2.2013)[1] <- "ID"
@@ -129,9 +127,12 @@ is.adm.rate.not.null <- complete.cases(frame3.2013$ADM_RATE_ALL)
 average_adm_rate <- mean(frame3.2013$ADM_RATE_ALL[is.adm.rate.not.null])
 frame3.2013$ADM_RATE_ALL[!is.adm.rate.not.null] <- average_adm_rate
 frame3.2.2013 <- frame3.2013[complete.cases(frame3.2013),]
-train_test_frames3.2013 <- get_balanced_train_test_frames(frame3.2013, 1, 1)
-frame3.2013.train <- train_test_frames3.2013[[1]]
-frame3.2013.test <- train_test_frames3.2013[[2]]
+train_test_frames3.1.2013 <- get_balanced_train_test_frames(frame3.1.2013, 1, 1)
+frame3.1.2013.train <- train_test_frames3.1.2013[[1]]
+frame3.1.2013.test <- train_test_frames3.1.2013[[2]]
+train_test_frames3.2.2013 <- get_balanced_train_test_frames(frame3.2.2013, 1, 1)
+frame3.2.2013.train <- train_test_frames3.2.2013[[1]]
+frame3.2.2013.test <- train_test_frames3.2.2013[[2]]
 
 # Feature set #4 (Cost)
 #features4.2013 <- c("TUITIONFEE_PROG", "TUITIONFEE_OUT", "COSTT4_A", "NPT4_PUB", "NPT4_PRIV", "NPT4_PROG", "NPT4_OTHER", "NPT41_PUB", "NPT42_PUB", "NPT43_PUB", "NPT41_PRIV", "NPT42_PRIV", "NPT43_PRIV", "NPT41_PROG", "NPT42_PROG", "NPT43_PROG", "NPT41_OTHER", "NPT42_OTHER", "NPT43_OTHER", "NUM4_PUB", "NUM4_PRIV", "NUM4_PROG", "NUM4_OTHER", "NUM41_PUB", "NUM42_PUB", "NUM43_PUB", "NUM41_PRIV", "NUM42_PRIV", "NUM43_PRIV", "NUM41_PROG", "NUM42_PROG", "NUM43_PROG", "NUM41_OTHER", "NUM42_OTHER", "NUM43_OTHER")
@@ -209,9 +210,21 @@ frame7.2013 <- merge_columns(frame7.2013, c("C150_4", "C150_L4", "C150_4_POOLED"
 frame7.2013 <- merge_columns(frame7.2013, c("D150_4", "D150_L4", "D150_4_POOLED", "D150_L4_POOLED"), "D150")
 
 frame7.2013 <- frame7.2013[complete.cases(frame7.2013),]
-train_test_frames7.2013 <- get_balanced_train_test_frames(frame7.2013, 1, 1)
+train_test_frames7.2013 <- get_balanced_train_test_frames(frame7.2013, 1, 1) # train_balance, train_test
 frame7.2013.train <- train_test_frames7.2013[[1]]
 frame7.2013.test <- train_test_frames7.2013[[2]]
+
+train_test_frames7.1.2013 <- get_balanced_train_test_frames(frame7.2013, 2, 1)
+frame7.1.2013.train <- train_test_frames7.1.2013[[1]]
+frame7.1.2013.test <- train_test_frames7.1.2013[[2]]
+
+train_test_frames7.2.2013 <- get_balanced_train_test_frames(frame7.2013, 2, 2)
+frame7.2.2013.train <- train_test_frames7.2.2013[[1]]
+frame7.2.2013.test <- train_test_frames7.2.2013[[2]]
+
+train_test_frames7.3.2013 <- get_balanced_train_test_frames(frame7.2013, 2, 3)
+frame7.3.2013.train <- train_test_frames7.3.2013[[1]]
+frame7.3.2013.test <- train_test_frames7.3.2013[[2]]
 
 # candidates for removing (too much NAs)
 #AVGFACSAL
@@ -219,21 +232,14 @@ frame7.2013.test <- train_test_frames7.2013[[2]]
 
 # what if use just npt4 and num4?
 
-
-
-
-
-
-
-
-compare_roc_curves(frame1.2013.train, "FS#1 (Program percentages.)")
-compare_roc_curves(frame2.2013.train, "FS#2 (NEEDS ANALYSIS.)")
-compare_roc_curves(frame3.1.2013.train, "FS#3 (Admission Rate(Ignoring NA) + Undergrads.)")
-compare_roc_curves(frame3.2.2013.train, "FS#3 (Admission Rate(NA=ave.) + Undergrads.)")
-compare_roc_curves(frame4.2013.train, "FS#4 (Cost)")
-compare_roc_curves(frame5.2013.train, "FS#5 (Revenue - expenditure)")
-compare_roc_curves(frame6.2013.train, "FS#6 (Completion/Retention. Not much data)")
-compare_roc_curves(frame7.2013.train, "FS#7 (Best predictors. Not much data)")
-
-
-
+compare_roc_curves(frame1.2013.train, frame1.2013.test, "FS#1 (Program percentages.)")
+compare_roc_curves(frame2.2013.train, frame2.2013.test, "FS#2 (NEEDS ANALYSIS.)")
+compare_roc_curves(frame3.1.2013.train, frame3.1.2013.test, "FS#3 (Admission Rate(Ignoring NA) + Undergrads.)")
+compare_roc_curves(frame3.2.2013.train, frame3.2.2013.test, "FS#3 (Admission Rate(NA=ave.) + Undergrads.)")
+compare_roc_curves(frame4.2013.train, frame4.2013.test, "FS#4 (Cost)")
+compare_roc_curves(frame5.2013.train, frame5.2013.test,"FS#5 (Revenue - expenditure)")
+compare_roc_curves(frame6.2013.train, frame6.2013.test, "FS#6 (Completion/Retention. Not much data)")
+compare_roc_curves(frame7.2013.train, frame7.2013.test, paste("Balance coef: ", 1, " Train size: ", nrow(frame7.2013.train)))
+compare_roc_curves(frame7.1.2013.train, frame7.1.2013.test, paste("Balance coef: ", 2, " Train size: ", nrow(frame7.2013.train)))
+compare_roc_curves(frame7.2.2013.train, frame7.2.2013.test, paste("Balance coef: ", 2, " Train size: ", nrow(frame7.2013.train)))
+compare_roc_curves(frame7.3.2013.train, frame7.3.2013.test, paste("Balance coef: ", 2, " Train size: ", nrow(frame7.2013.train)))
