@@ -4,6 +4,7 @@ library(MASS)
 library(flux)
 library(leaps)
 library(Boruta)
+library(tree)
 
 simple_roc <- function(labels, scores){
   labels <- labels[order(scores, decreasing=TRUE)]
@@ -12,10 +13,10 @@ simple_roc <- function(labels, scores){
 
 compare_roc_curves <- function(frame.train, frame.test, title){
   set.seed(1)
-
-  # Naive Bayes
   frame.train.factor <- frame.train
   frame.train.factor$NON_OPERATING <- as.factor(frame.train$NON_OPERATING)
+
+  # Naive Bayes
   nb.model <- suppressWarnings(train(NON_OPERATING~., data=frame.train.factor, 'nb', trControl=trainControl(method='cv', number=10)))
   nb.pred <- suppressWarnings(predict(nb.model$finalModel, newdata=frame.test))
   roc.nb <- simple_roc(frame.test$NON_OPERATING, unname(nb.pred$posterior[,2]))
@@ -34,18 +35,26 @@ compare_roc_curves <- function(frame.train, frame.test, title){
   auc.glm <- auc(x = roc.glm$FPR, y = roc.glm$TPR)
   # It's interesting, that glm probabilities are quite low (<0.2), although ROC curve is not that bad 
   
+  # Tree
+  tree.fit <- tree(NON_OPERATING ~ ., data = frame.train.factor)
+  tree.pred <- predict(tree.fit, newdata=frame.test, type = "vector")
+  roc.tree <- simple_roc(frame.test$NON_OPERATING, unname(tree.pred[,2]))
+  auc.tree <- auc(x = roc.tree$FPR, y = roc.tree$TPR)
+  
   # Plotting
   par(mfrow=c(1,1))
   plot(x = roc.nb$FPR, y = roc.nb$TPR, main = title, col="green", xlab = "FPR", ylab = "TPR", type = "l", lwd=2)
   lines(x = roc.lda$FPR, y = roc.lda$TPR, col="red", type = "l", lwd=2)
   lines(x = roc.glm$FPR, y = roc.glm$TPR, col="blue", type = "l", lwd=2)
+  lines(x = roc.tree$FPR, y = roc.tree$TPR, col="orange", type = "l", lwd=2)
   
   legend.nb <- paste("NB. AUC=", round(auc.nb, digits = 3), sep="")
   legend.lda <- paste("LDA. AUC=", round(auc.lda, digits = 3), sep="")
   legend.glm <- paste("GLM. AUC=", round(auc.glm, digits = 3), sep="")
-  legend("bottomright",legend = c(legend.nb, legend.lda, legend.glm), col=c("green", "red", "blue"),lty = 1,lwd = 2,cex = 0.6, x.intersp=1)
+  legend.tree <- paste("Tree. AUC=", round(auc.tree, digits = 3), sep="")
+  legend("bottomright",legend = c(legend.nb, legend.lda, legend.glm, legend.tree), col=c("green", "red", "blue", "orange"),lty = 1,lwd = 2,cex = 0.6, x.intersp=1)
   text(0.8, 0.5, paste(colnames(frame.train), collapse="\n"))
-  return(c(auc.nb, auc.lda, auc.glm))
+  return(c(auc.nb, auc.lda, auc.glm, auc.tree))
 }
 
 merge_2_columns <- function(frame, first_col, second_col, result_col){
@@ -160,3 +169,6 @@ frame.2013.test <- train_test_frames.2013[[2]]
 
 # The best one at this moment:
 compare_roc_curves(frame.2013.train, frame.2013.test, paste("Balance coef: ", 2, " Train size: ", nrow(frame.2013.train), " #Predictors: ", length(colnames(frame.2013.train))-1))
+
+
+
