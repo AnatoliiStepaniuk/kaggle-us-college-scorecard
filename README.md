@@ -5,7 +5,7 @@ The data set contains vast amount of data about US colleges (>1700 features for 
 
 One of the most interesting feature for me was the `CURROPER` flag which indicates whether a school is considered currently operating. As education sector is being changed very dynamically recently I was interested in answering the question what are the reasons for schools to shutdown nowadays as well as being able to predict whether a school is going to shutdown anytime soon.
 
-It turned out that dividing schools by "Currenly operating" flag leads to imbalanced data (less than 5% of schools are stated to be non-operating). It meant that I should be careful with choosing a way for estimating classificator's efficiency (because even predicting every school to be operating will have 0.95 error rate). I've decided to draw ROC plots in order to gather more information than a single variable(like error rate or AUC).
+It turned out that dividing schools by "Currenly operating" flag leads to somewhat imbalanced data (less than 5% of schools are stated to be non-operating). It meant that I should be careful with choosing a way for estimating classificator's efficiency (because even predicting every school to be operating will have 0.95 error rate). I've decided to draw ROC plots in order to gather more information than a single variable(like error rate or AUC).
 
 ### Feature selection
 
@@ -36,4 +36,23 @@ There's no surprise except for `PAR_ED_PCT_HS`. One of the possible explanations
 
 ### Tuning Classificator
 
-Because the data set appeared to have imbalanced data I was concerned about classificator having access to sufficient number of non-operating schools during training process. In order to achieve this I've provided balanced data (operating/non-operating) for training while testing classificator's performance on natural, imbalanced data. However after experimenting with different balancing ratios it turned out that Random Forest algorithm was perfoming better on the data as is, without additional balancing.
+During feature selection, I've plotted ROC curves for several classification algorithms: 
+1. **Naive Bayes**
+2. **Linear Discriminant Analysis**
+3. **Logistic Regression**
+4. **Decision Trees**
+5. **Random Forest**
+
+Although most of them produced quite similar ROC curves, Random Forest substantially outperformed others in terms of partial AUC for low FPR. Due to this I've focused my tuning efforts on increasing Random Forest performance.
+
+In addition to the mentioned algorithms I've also tried to apply anomaly detection framework (from `kmodR` package) in order to predict non-operating schools. However, error rate was unexceptable in comparison with Random Forest.
+
+Because the data set appeared to have somewhat imbalanced data I was concerned about classificator having access to sufficient number of non-operating schools during training process. In order to achieve this I've provided balanced data (operating/non-operating) for training, while testing classificator's performance on natural, imbalanced data. However after experimenting with different balancing ratios it turned out that Random Forest algorithm was perfoming better on the data as is, without additional balancing.
+
+Tuning random forest parameters, showed that defaults (`nodesize=1`, `ntree=500`) give the best partial auc.
+
+### Hunting more data
+
+
+
+
