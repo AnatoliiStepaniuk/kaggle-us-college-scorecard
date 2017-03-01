@@ -13,7 +13,6 @@ FPR_TO = 0.05
 BUCKETS_NUM = 1000
 AUC_DIGITS = 4
 FOLDS_NUM = 10
-TRAIN_TEST_RATIO = 0.85
 
 simple_roc <- function(labels, scores){
   labels <- labels[order(scores, decreasing=TRUE)]
@@ -21,23 +20,32 @@ simple_roc <- function(labels, scores){
   data.frame(TPR=cumsum(labels)/sum(labels), FPR=cumsum(!labels)/sum(!labels), labels = labels, scores = scores )
 }
 
-plot_graphs <- function(roc.nb, roc.lda, roc.glm, roc.tree, roc.rf, title, colnames, xlim, ylim){
+plot_graphs <- function(roc.nb, roc.lda, roc.glm, roc.tree, roc.rf, title, colnames, xlim, ylim, pauc, legend.pos){
   plot(x = roc.nb$FPR, y = roc.nb$TPR, main = title, col="green", xlab = "FPR", ylab = "TPR", xlim = xlim, ylim = ylim, type = "l", lwd=2)
   lines(x = roc.lda$FPR, y = roc.lda$TPR, col="red", type = "l", lwd=2)
   lines(x = roc.glm$FPR, y = roc.glm$TPR, col="blue", type = "l", lwd=2)
   lines(x = roc.tree$FPR, y = roc.tree$TPR, col="orange", type = "l", lwd=2)
   lines(x = roc.rf$FPR, y = roc.rf$TPR, col="black", type = "l", lwd=2)
   
-  legend.nb <- paste("NB. AUC=", round(roc.nb$pauc[1], digits = AUC_DIGITS), sep="")
-  legend.lda <- paste("LDA. AUC=", round(roc.lda$pauc[1], digits = AUC_DIGITS), sep="")
-  legend.glm <- paste("GLM. AUC=", round(roc.glm$pauc[1], digits = AUC_DIGITS), sep="")
-  legend.tree <- paste("Tree. AUC=", round(roc.tree$pauc[1], digits = AUC_DIGITS), sep="")
-  legend.rf <- paste("RF. AUC=", round(roc.rf$pauc[1], digits = AUC_DIGITS), sep="")
-  legend("bottomright",legend = c(legend.nb, legend.lda, legend.glm, legend.tree, legend.rf), col=c("green", "red", "blue", "orange", "black"),lty = 1,lwd = 2,cex = 0.6, x.intersp=1)
-  
   text(0.8, 0.5, paste(colnames[colnames != "NON_OPERATING"], collapse="\n"))
   lines(x=c(FPR_FROM, FPR_FROM), y=c(0,0.6), type = "l", lty="dashed", col="red")
   lines(x=c(FPR_TO, FPR_TO), y=c(0,0.6), type = "l", lty="dashed", col="red")
+
+    if(pauc){
+    legend.nb <- paste("NB. AUC=", round(roc.nb$pauc[1], digits = AUC_DIGITS), sep="")
+    legend.lda <- paste("LDA. AUC=", round(roc.lda$pauc[1], digits = AUC_DIGITS), sep="")
+    legend.glm <- paste("GLM. AUC=", round(roc.glm$pauc[1], digits = AUC_DIGITS), sep="")
+    legend.tree <- paste("Tree. AUC=", round(roc.tree$pauc[1], digits = AUC_DIGITS), sep="")
+    legend.rf <- paste("RF. AUC=", round(roc.rf$pauc[1], digits = AUC_DIGITS), sep="")
+  }
+  else{
+    legend.nb <- paste("NB. AUC=", round(roc.nb$auc[1], digits = AUC_DIGITS), sep="")
+    legend.lda <- paste("LDA. AUC=", round(roc.lda$auc[1], digits = AUC_DIGITS), sep="")
+    legend.glm <- paste("GLM. AUC=", round(roc.glm$auc[1], digits = AUC_DIGITS), sep="")
+    legend.tree <- paste("Tree. AUC=", round(roc.tree$auc[1], digits = AUC_DIGITS), sep="")
+    legend.rf <- paste("RF. AUC=", round(roc.rf$auc[1], digits = AUC_DIGITS), sep="")
+  }
+  legend(legend.pos,legend = c(legend.nb, legend.lda, legend.glm, legend.tree, legend.rf), col=c("green", "red", "blue", "orange", "black"),lty = 1,lwd = 2,cex = 0.6, x.intersp=1)
 }
 
 compare_roc_curves_cv <- function(frame.folds, title){
@@ -105,8 +113,8 @@ compare_roc_curves_cv <- function(frame.folds, title){
   
   # Plotting
   par(mfrow=c(1,2))
-  plot_graphs(roc.nb, roc.lda, roc.glm, roc.tree, roc.rf, title, colnames(frame.folds[[1]]$test), xlim = c(0,1), ylim = c(0,1))
-  plot_graphs(roc.nb, roc.lda, roc.glm, roc.tree, roc.rf, title, colnames(frame.folds[[1]]$test), xlim = c(FPR_FROM,1.1*FPR_TO), ylim = c(-0.2,0.5))
+  plot_graphs(roc.nb, roc.lda, roc.glm, roc.tree, roc.rf, title, colnames(frame.folds[[1]]$test), xlim = c(0,1), ylim = c(0,1), FALSE, "bottomright")
+  plot_graphs(roc.nb, roc.lda, roc.glm, roc.tree, roc.rf, title, colnames(frame.folds[[1]]$test), xlim = c(FPR_FROM,1.1*FPR_TO), ylim = c(-0.2,0.7), TRUE, "topright")
 
   return(c(roc.nb$pauc[1], roc.lda$pauc[1], roc.glm$pauc[1], roc.tree$pauc[1], roc.rf$pauc[1]))
 }
@@ -124,7 +132,7 @@ get_roc_mean <- function(rocs){
 partial_auc <- function(roc, fpr.from, fpr.to){
   ind <- roc$FPR >= fpr.from & roc$FPR <= fpr.to
   auc = 0
-  for(i in 1:nrow(roc[ind,])){
+  for(i in 1:(nrow(roc[ind,])-1)){
     auc <- auc + roc$TPR[i] * (roc$FPR[i+1] - roc$FPR[i])
   }
   return(auc)  
@@ -144,8 +152,8 @@ compare_roc_curves_imbalanced_cv <- function(frame, folds_num, title){
     roc.nb.buckets[[i]] <- divide_roc_data_buckets(roc.nb[[i]], BUCKETS_NUM)
   }
   roc.nb <- get_roc_mean(roc.nb.buckets)
-  roc.nb$auc <- partial_auc(roc.nb, FPR_FROM, 1) 
   roc.nb$pauc <- partial_auc(roc.nb, FPR_FROM, FPR_TO) 
+  roc.nb$auc <- partial_auc(roc.nb, FPR_FROM, 1) 
   
   # LDA
   roc.lda <- list()
@@ -157,8 +165,8 @@ compare_roc_curves_imbalanced_cv <- function(frame, folds_num, title){
     roc.lda.buckets[[i]] <- divide_roc_data_buckets(roc.lda[[i]], BUCKETS_NUM)
   }
   roc.lda <- get_roc_mean(roc.lda.buckets)
-  roc.lda$auc <- partial_auc(roc.lda, FPR_FROM, 1) 
   roc.lda$pauc <- partial_auc(roc.lda, FPR_FROM, FPR_TO) 
+  roc.lda$auc <- partial_auc(roc.lda, FPR_FROM, 1) 
   
   # GLM
   roc.glm <- list()
@@ -201,8 +209,8 @@ compare_roc_curves_imbalanced_cv <- function(frame, folds_num, title){
 
   # Plotting
   par(mfrow=c(1,2))
-  plot_graphs(roc.nb, roc.lda, roc.glm, roc.tree, roc.rf, title, colnames(frame), xlim = c(0,1), ylim = c(0,1))
-  plot_graphs(roc.nb, roc.lda, roc.glm, roc.tree, roc.rf, title, colnames(frame), xlim = c(FPR_FROM,1.1*FPR_TO), ylim = c(0,0.6))
+  plot_graphs(roc.nb, roc.lda, roc.glm, roc.tree, roc.rf, title, colnames(frame), xlim = c(0,1), ylim = c(0,1), FALSE, "bottomright")
+  plot_graphs(roc.nb, roc.lda, roc.glm, roc.tree, roc.rf, title, colnames(frame), xlim = c(FPR_FROM,1.1*FPR_TO), ylim = c(0,0.7), TRUE, "topright")
   
   return(c(roc.nb$pauc[1], roc.lda$pauc[1], roc.glm$pauc[1], roc.tree$pauc[1], roc.rf$pauc[1]))
 }
@@ -430,9 +438,3 @@ performance <- estimate_RF_performance(frame.2013, FOLDS_NUM, FPR_TO)
 performance$precision
 performance$tpr
 performance$fpr
-
-
-
-
-
-
