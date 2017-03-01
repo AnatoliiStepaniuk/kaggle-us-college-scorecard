@@ -13,6 +13,7 @@ FPR_TO = 0.05
 BUCKETS_NUM = 1000
 AUC_DIGITS = 4
 FOLDS_NUM = 10
+TRAIN_TEST_RATIO = 0.85
 
 simple_roc <- function(labels, scores){
   labels <- labels[order(scores, decreasing=TRUE)]
@@ -35,8 +36,8 @@ plot_graphs <- function(roc.nb, roc.lda, roc.glm, roc.tree, roc.rf, title, colna
   legend("bottomright",legend = c(legend.nb, legend.lda, legend.glm, legend.tree, legend.rf), col=c("green", "red", "blue", "orange", "black"),lty = 1,lwd = 2,cex = 0.6, x.intersp=1)
   
   text(0.8, 0.5, paste(colnames[colnames != "NON_OPERATING"], collapse="\n"))
-  lines(x=c(FPR_FROM, FPR_FROM), y=c(0,0.5), type = "l", lty="dashed", col="red")
-  lines(x=c(FPR_TO, FPR_TO), y=c(0,0.5), type = "l", lty="dashed", col="red")
+  lines(x=c(FPR_FROM, FPR_FROM), y=c(0,0.6), type = "l", lty="dashed", col="red")
+  lines(x=c(FPR_TO, FPR_TO), y=c(0,0.6), type = "l", lty="dashed", col="red")
 }
 
 compare_roc_curves_cv <- function(frame.folds, title){
@@ -143,6 +144,7 @@ compare_roc_curves_imbalanced_cv <- function(frame, folds_num, title){
     roc.nb.buckets[[i]] <- divide_roc_data_buckets(roc.nb[[i]], BUCKETS_NUM)
   }
   roc.nb <- get_roc_mean(roc.nb.buckets)
+  roc.nb$auc <- partial_auc(roc.nb, FPR_FROM, 1) 
   roc.nb$pauc <- partial_auc(roc.nb, FPR_FROM, FPR_TO) 
   
   # LDA
@@ -155,6 +157,7 @@ compare_roc_curves_imbalanced_cv <- function(frame, folds_num, title){
     roc.lda.buckets[[i]] <- divide_roc_data_buckets(roc.lda[[i]], BUCKETS_NUM)
   }
   roc.lda <- get_roc_mean(roc.lda.buckets)
+  roc.lda$auc <- partial_auc(roc.lda, FPR_FROM, 1) 
   roc.lda$pauc <- partial_auc(roc.lda, FPR_FROM, FPR_TO) 
   
   # GLM
@@ -167,6 +170,7 @@ compare_roc_curves_imbalanced_cv <- function(frame, folds_num, title){
     roc.glm.buckets[[i]] <- divide_roc_data_buckets(roc.glm[[i]], BUCKETS_NUM)
   }
   roc.glm <- get_roc_mean(roc.glm.buckets)
+  roc.glm$auc <- partial_auc(roc.glm, FPR_FROM, 1) 
   roc.glm$pauc <- partial_auc(roc.glm, FPR_FROM, FPR_TO) 
   
   # Decision Tree
@@ -179,6 +183,7 @@ compare_roc_curves_imbalanced_cv <- function(frame, folds_num, title){
     roc.tree.buckets[[i]] <- divide_roc_data_buckets(roc.tree[[i]], BUCKETS_NUM)
   }
   roc.tree <- get_roc_mean(roc.tree.buckets)
+  roc.tree$auc <- partial_auc(roc.tree, FPR_FROM, 1) 
   roc.tree$pauc <- partial_auc(roc.tree, FPR_FROM, FPR_TO) 
   
   # Random Forest 
@@ -191,6 +196,7 @@ compare_roc_curves_imbalanced_cv <- function(frame, folds_num, title){
     roc.rf.buckets[[i]] <- divide_roc_data_buckets(roc.rf[[i]], BUCKETS_NUM)
   }
   roc.rf <- get_roc_mean(roc.rf.buckets)
+  roc.rf$auc <- partial_auc(roc.rf, FPR_FROM, 1) 
   roc.rf$pauc <- partial_auc(roc.rf, FPR_FROM, FPR_TO) 
 
   # Plotting
@@ -349,38 +355,68 @@ choose_RF_threshold <- function(frame, folds_num, fpr_to){
   return(mean(thresholds))
 }
 
+estimate_RF_performance <- function(frame, folds_num, fpr_rate){
+  folds <- createFolds(1:nrow(frame), k=folds_num, list=TRUE, returnTrain = TRUE)
+  thresholds <- rep(NA, folds_num)
+  fprs <- list()
+  tprs <- list()
+  precisions <- list()
+  for(i in 1:folds_num){
+    rf.threshold <- choose_RF_threshold(frame[folds[[i]],], folds_num, fpr_rate)
+    test.model <- randomForest(factor(NON_OPERATING) ~ ., data=frame[folds[[i]],], importance=TRUE)
+    test.prob <- unname(predict(test.model, newdata=frame[-folds[[i]],], type = "prob")[,2])
+    test.pred <- ifelse(test.prob > rf.threshold, 1, 0)
+    test.resp <- frame[-folds[[i]],]$NON_OPERATING
+    precisions[[i]] <- sum(test.resp == 1 & test.pred == 1)/sum(test.pred==1)
+    tprs[[i]] <- sum(test.resp == 1 & test.pred == 1)/sum(test.resp==1)
+    fprs[[i]] <- sum(test.resp == 0 & test.pred == 1)/sum(test.resp==0)
+  }
+  
+  precision <- mean(unlist(precisions))
+  tpr <- mean(unlist(tprs))
+  fpr <- mean(unlist(fprs))
+  return(list(precision=precision, tpr=tpr, fpr=fpr))
+}
+
+feature_engineering_and_selection <- function(raw){
+  features <- c("PAR_ED_PCT_PS", "TUITIONFEE_PROG", "TUITIONFEE_OUT", "COSTT4_A", "COSTT4_P", "NPT4_PUB", "NPT4_PRIV", "NPT4_PROG", "NPT4_OTHER", "NUM4_PUB", "NUM4_PRIV", "NUM4_PROG", "NUM4_OTHER", "TUITFTE", "INEXPFTE", "RET_PTL4", "RET_PT4", "RET_FTL4", "RET_FT4", "C150_4", "C150_L4", "C150_4_POOLED", "C150_L4_POOLED", "D150_4", "D150_L4", "D150_4_POOLED", "D150_L4_POOLED", "C150_4_AIAN", "C150_4_NHPI", "C150_4_2MOR", "C150_4_NRA", "C150_4_API", "C150_L4_NHPI", "C150_L4_2MOR", "C150_L4_NRA", "C150_4_POOLED_SUPP")
+  frame <- raw[,features]
+  frame$NON_OPERATING <- ifelse(raw.2013[,"CURROPER"]==0, 1, 0)
+  frame[,features] <- suppressWarnings(lapply(frame[,features], as.numeric))
+  
+  frame <- merge_columns(frame, c("COSTT4_A", "COSTT4_P"), "COSTT4")
+  frame <- merge_columns(frame, c("TUITIONFEE_PROG", "TUITIONFEE_OUT"), "TUITIONFEE")
+  frame <- merge_columns(frame, c( "NPT4_PUB", "NPT4_PRIV", "NPT4_PROG", "NPT4_OTHER"), "NPT4")
+  frame <- merge_columns(frame, c( "NUM4_PUB", "NUM4_PRIV", "NUM4_PROG", "NUM4_OTHER"), "NUM4")
+  frame$REVENUE_EXPENDITURE <- frame$TUITFTE - frame$INEXPFTE
+  frame$TUITFTE <- NULL
+  frame$INEXPFTE <- NULL
+  frame <- merge_columns(frame, c("RET_PTL4", "RET_PT4", "RET_FTL4", "RET_FT4"), "RET")
+  frame <- merge_columns(frame, c("C150_4", "C150_L4", "C150_4_POOLED", "C150_L4_POOLED", "C150_4_AIAN", "C150_4_NHPI", "C150_4_2MOR", "C150_4_NRA", "C150_4_API", "C150_L4_NHPI", "C150_L4_2MOR", "C150_L4_NRA", "C150_4_POOLED_SUPP"), "C150")
+  frame <- merge_columns(frame, c("D150_4", "D150_L4", "D150_4_POOLED", "D150_L4_POOLED"), "D150")
+  frame <- frame[complete.cases(frame),]
+  
+  # Eliminated, since I've focused on lowest 5% AUC instead of global parameters like RSS or R-squared:
+  #draw_feature_selection_plots(frame.train)
+  
+  # Removing features according to lowest 5% AUC measurements:
+  frame$COSTT4<-NULL
+  frame$RET<-NULL
+  
+  return(frame)
+}
+
 file.2013 <- "./data/MERGED2013_PP.csv"
 file.2012 <- "./data/MERGED2012_PP.csv"
-#raw.2013 <- read.csv(file.2013, stringsAsFactors = FALSE)
+raw.2013 <- read.csv(file.2013, stringsAsFactors = FALSE)
 #raw.2012 <- read.csv(file.2012, stringsAsFactors = FALSE)
 
-features.2013 <- c("PAR_ED_PCT_PS", "TUITIONFEE_PROG", "TUITIONFEE_OUT", "COSTT4_A", "COSTT4_P", "NPT4_PUB", "NPT4_PRIV", "NPT4_PROG", "NPT4_OTHER", "NUM4_PUB", "NUM4_PRIV", "NUM4_PROG", "NUM4_OTHER", "TUITFTE", "INEXPFTE", "RET_PTL4", "RET_PT4", "RET_FTL4", "RET_FT4", "C150_4", "C150_L4", "C150_4_POOLED", "C150_L4_POOLED", "D150_4", "D150_L4", "D150_4_POOLED", "D150_L4_POOLED", "C150_4_AIAN", "C150_4_NHPI", "C150_4_2MOR", "C150_4_NRA", "C150_4_API", "C150_L4_NHPI", "C150_L4_2MOR", "C150_L4_NRA", "C150_4_POOLED_SUPP")
-frame.2013 <- raw.2013[,features.2013]
-frame.2013$NON_OPERATING <- ifelse(raw.2013[,"CURROPER"]==0, 1, 0)
-frame.2013[,features.2013] <- suppressWarnings(lapply(frame.2013[,features.2013], as.numeric))
+frame.2013 <- feature_engineering_and_selection(raw.2013)
 
-frame.2013 <- merge_columns(frame.2013, c("COSTT4_A", "COSTT4_P"), "COSTT4")
-frame.2013 <- merge_columns(frame.2013, c("TUITIONFEE_PROG", "TUITIONFEE_OUT"), "TUITIONFEE")
-frame.2013 <- merge_columns(frame.2013, c( "NPT4_PUB", "NPT4_PRIV", "NPT4_PROG", "NPT4_OTHER"), "NPT4")
-frame.2013 <- merge_columns(frame.2013, c( "NUM4_PUB", "NUM4_PRIV", "NUM4_PROG", "NUM4_OTHER"), "NUM4")
-frame.2013$REVENUE_EXPENDITURE <- frame.2013$TUITFTE - frame.2013$INEXPFTE
-frame.2013$TUITFTE <- NULL
-frame.2013$INEXPFTE <- NULL
-frame.2013 <- merge_columns(frame.2013, c("RET_PTL4", "RET_PT4", "RET_FTL4", "RET_FT4"), "RET")
-frame.2013 <- merge_columns(frame.2013, c("C150_4", "C150_L4", "C150_4_POOLED", "C150_L4_POOLED", "C150_4_AIAN", "C150_4_NHPI", "C150_4_2MOR", "C150_4_NRA", "C150_4_API", "C150_L4_NHPI", "C150_L4_2MOR", "C150_L4_NRA", "C150_4_POOLED_SUPP"), "C150")
-frame.2013 <- merge_columns(frame.2013, c("D150_4", "D150_L4", "D150_4_POOLED", "D150_L4_POOLED"), "D150")
-frame.2013 <- frame.2013[complete.cases(frame.2013),]
-
-# Eliminated, since I've focused on lowest 5% AUC instead of global parameters like RSS or R-squared:
-#draw_feature_selection_plots(frame.2013.train)
-
-# Removing features according to lowest 5% AUC measurements:
-frame.2013$COSTT4<-NULL
-frame.2013$RET<-NULL
-
+# Estimating feature importance
 par(mfrow=c(1,1))
 rf.fit <- randomForest(factor(NON_OPERATING) ~ ., data=frame.2013, keep.forest=FALSE, importance=TRUE)
-varImpPlot(rf.fit)
+varImpPlot(rf.fit, pt.cex=1.5, main = "Random Forest feature importance")
 importance(rf.fit)
 
 # It turned out Random Forest performs better on imbalanced data, so no additional balancing is needed:
@@ -389,8 +425,14 @@ importance(rf.fit)
 
 aucs <- compare_roc_curves_imbalanced_cv(frame.2013, FOLDS_NUM, paste("Inbalanced. CV", " Train size: ", floor((9/10)*nrow(frame.2013)), " #Predictors: ", length(colnames(frame.2013))-1))
 
-# Choosing threshold
-rf.thr <- choose_RF_threshold(frame.2013, FOLDS_NUM, FPR_TO)
-
-
 # Estimating final performance 
+performance <- estimate_RF_performance(frame.2013, FOLDS_NUM, FPR_TO)
+performance$precision
+performance$tpr
+performance$fpr
+
+
+
+
+
+

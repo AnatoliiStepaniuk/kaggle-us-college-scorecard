@@ -51,8 +51,11 @@ Because the data set appeared to have somewhat imbalanced data I was concerned a
 
 Tuning random forest parameters, showed that defaults (`nodesize=1`, `ntree=500`) give the best partial auc.
 
-### Hunting more data
+### Estimating final performance
 
+I've chosen classification probability threshold to achieve FPR around 5% according to aforementioned calculations which turned out to be around 0.132.
+It resulted in next estimations:
 
-
-
+**Precision** : `0.246` - One quarter of non-operating predictions were correct.
+**TPR(Recall)** : `0.46` - I've been able to correctly predict about a half of all the non-operating schools.
+**FPR** : `0.048` - expected FPR value of around 5%.
