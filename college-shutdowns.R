@@ -392,8 +392,6 @@ fill_missing_data <- function(frame.main, frame.donor){
   for(id in incomplete_row_ids){
     main.id = which(frame.main$ID==id)
     donor.id = which(frame.donor$ID==id)
-    # TODO remove this print()
-    print(paste(round(100*which(incomplete_row_ids==id)/length(incomplete_row_ids),2),"%, ID=", id, sep=""))
     for(column in colnames(frame.main)){
       if(is.na(frame.main[main.id,column]) && id %in% frame.donor$ID && !is.na(frame.donor[donor.id, column]))
         frame.main[main.id,column] = frame.donor[donor.id, column]
@@ -418,7 +416,7 @@ combine_data_from_all_files <- function(filenames){
 plot_feature_importance <- function(frame){
   par(mfrow=c(1,1))
   fit.rf <- randomForest(factor(NON_OPERATING) ~ ., data=frame, keep.forest=FALSE, importance=TRUE)
-  varImpPlot(fit.rf, pt.cex=1.5, main="")
+  varImpPlot(fit.rf, pt.cex=1.5, main="", cex=0.8)
   title( main = "Random Forest feature importance", cex.main=1.6)
   importance(fit.rf)
 }
@@ -434,7 +432,7 @@ feature_engineering_and_selection <- function(raw){
   frame <- merge_columns(frame, c("TUITIONFEE_PROG", "TUITIONFEE_OUT"), "TUITIONFEE")
   frame <- merge_columns(frame, c( "NPT4_PUB", "NPT4_PRIV", "NPT4_PROG", "NPT4_OTHER"), "NPT4")
   frame <- merge_columns(frame, c( "NUM4_PUB", "NUM4_PRIV", "NUM4_PROG", "NUM4_OTHER"), "NUM4")
-  frame$REVENUE_EXPENDITURE <- frame$TUITFTE - frame$INEXPFTE
+  frame$REV_EXP <- frame$TUITFTE - frame$INEXPFTE
   frame$TUITFTE <- NULL
   frame$INEXPFTE <- NULL
   frame <- merge_columns(frame, c("RET_PTL4", "RET_PT4", "RET_FTL4", "RET_FT4"), "RET")
