@@ -28,12 +28,13 @@ Applying feature elimination demonstrated that we can noticeably increase AUC in
 
 The features left for the final model (ordered by decreasing importance):
 
-1. `REVENUE_EXPENDITURE` - Net tuition revenue minus instructional expenditures per full-time equivalent student.
-2. `TUITIONFEE` - Tuition and fees.
+1. `TUITIONFEE` - Tuition and fees.
+2. `D150` - Completion rates.
 3. `PAR_ED_PCT_HS` - Percent of students whose parents' highest educational level was is some form of postsecondary education.
 4. `NPT4` - Average net price for Title IV institutions.
-5. `NUM4` - Number of Title IV students.
-6. `D150`, `C150` - Completion rates.
+5. `REVENUE_EXPENDITURE` - Net tuition revenue minus instructional expenditures per full-time equivalent student.
+6. `NUM4` - Number of Title IV students.
+7. `C150` - Completion rates.
 
 There's no surprise except for `PAR_ED_PCT_HS`. One of the possible explanations can be that parents with a higher education would recommend their children to apply to more stable schools.
 
@@ -55,11 +56,15 @@ Because the data set appeared to have somewhat imbalanced data I was concerned a
 
 Tuning Random Forest parameters, showed that defaults (`nodesize=1`, `ntree=500`) give the best partial auc.
 
+### Hunting more data
+
+After applying classificator for 2013 data, I've decided to gather additional information from files for other years. The algorithm was straightforward - for every school that's missing data for selected features, try to get data for that column from other files. It allowed me to decrease number of incomplete rows from 2011 to 1445.
+
 ### Estimating final performance
 
 I've chosen classification probability threshold to achieve FPR around 5% according to aforementioned calculations which turned out to be around 0.132.
 It resulted in following estimations:
 
-- **Precision** : `0.246` - One quarter of non-operating predictions were correct.
-- **TPR(Recall)** : `0.46` - I've been able to correctly predict about a half of all the non-operating schools.
-- **FPR** : `0.048` - expected FPR value of around 5%.
+**Precision** : `0.27` - More than one quarter of non-operating predictions were correct.
+**TPR(Recall)** : `0.42` - I've been able to correctly predict about a half of all the non-operating schools.
+**FPR** : `0.048` - expected FPR value of around 5%.
