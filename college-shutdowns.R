@@ -11,7 +11,8 @@ library(randomForest)
 FPR_FROM = 0.0 
 FPR_TO = 0.05
 BUCKETS_NUM = 1000
-AUC_DIGITS = 4
+AUC_DIGITS = 3
+PAUC_DIGITS = 4
 FOLDS_NUM = 10
 
 simple_roc <- function(labels, scores){
@@ -31,12 +32,12 @@ plot_graphs <- function(roc.nb, roc.lda, roc.glm, roc.tree, roc.rf, title, colna
   lines(x=c(FPR_FROM, FPR_FROM), y=c(0,0.6), type = "l", lty="dashed", col="red")
   lines(x=c(FPR_TO, FPR_TO), y=c(0,0.6), type = "l", lty="dashed", col="red")
 
-    if(pauc){
-    legend.nb <- paste("NB. AUC=", round(roc.nb$pauc[1], digits = AUC_DIGITS), sep="")
-    legend.lda <- paste("LDA. AUC=", round(roc.lda$pauc[1], digits = AUC_DIGITS), sep="")
-    legend.glm <- paste("GLM. AUC=", round(roc.glm$pauc[1], digits = AUC_DIGITS), sep="")
-    legend.tree <- paste("Tree. AUC=", round(roc.tree$pauc[1], digits = AUC_DIGITS), sep="")
-    legend.rf <- paste("RF. AUC=", round(roc.rf$pauc[1], digits = AUC_DIGITS), sep="")
+  if(pauc){
+    legend.nb <- paste("NB. AUC=", round(roc.nb$pauc[1], digits = PAUC_DIGITS), sep="")
+    legend.lda <- paste("LDA. AUC=", round(roc.lda$pauc[1], digits = PAUC_DIGITS), sep="")
+    legend.glm <- paste("GLM. AUC=", round(roc.glm$pauc[1], digits = PAUC_DIGITS), sep="")
+    legend.tree <- paste("Tree. AUC=", round(roc.tree$pauc[1], digits = PAUC_DIGITS), sep="")
+    legend.rf <- paste("RF. AUC=", round(roc.rf$pauc[1], digits = PAUC_DIGITS), sep="")
   }
   else{
     legend.nb <- paste("NB. AUC=", round(roc.nb$auc[1], digits = AUC_DIGITS), sep="")
@@ -56,8 +57,8 @@ compare_roc_curves_cv <- function(frame.folds, title){
   roc.nb.buckets <- list()
   for(i in 1:length(frame.folds)){
     nb.model <- suppressWarnings(train(factor(NON_OPERATING) ~ ., data=frame.folds[[i]]$train, 'nb', trControl=trainControl(method='cv', number=10)))
-    nb.pred <- suppressWarnings(predict(nb.model$finalModel, newdata=frame.folds[[i]]$test))
-    roc.nb[[i]] <- simple_roc(frame.folds[[i]]$test$NON_OPERATING, unname(nb.pred$posterior[,2]))
+    pred.nb <- suppressWarnings(predict(nb.model$finalModel, newdata=frame.folds[[i]]$test))
+    roc.nb[[i]] <- simple_roc(frame.folds[[i]]$test$NON_OPERATING, unname(pred.nb$posterior[,2]))
     roc.nb.buckets[[i]] <- divide_roc_data_buckets(roc.nb[[i]], BUCKETS_NUM)
   }
   roc.nb <- get_roc_mean(roc.nb.buckets)
@@ -67,8 +68,8 @@ compare_roc_curves_cv <- function(frame.folds, title){
   roc.lda <- list()
   roc.lda.buckets <- list()
   for(i in 1:length(frame.folds)){
-    lda.fit <- suppressWarnings(lda(NON_OPERATING ~ ., data=frame.folds[[i]]$train))
-    lda.prob <- suppressWarnings(predict(lda.fit, newdata=frame.folds[[i]]$test))
+    fit.lda <- suppressWarnings(lda(NON_OPERATING ~ ., data=frame.folds[[i]]$train))
+    lda.prob <- suppressWarnings(predict(fit.lda, newdata=frame.folds[[i]]$test))
     roc.lda[[i]] <- simple_roc(frame.folds[[i]]$test$NON_OPERATING, unname(lda.prob$posterior[,2]))
     roc.lda.buckets[[i]] <- divide_roc_data_buckets(roc.lda[[i]], BUCKETS_NUM)
   }
@@ -79,8 +80,8 @@ compare_roc_curves_cv <- function(frame.folds, title){
   roc.glm <- list()
   roc.glm.buckets <- list()
   for(i in 1:length(frame.folds)){
-    glm.fit <- suppressWarnings(glm(NON_OPERATING ~ ., data = frame.folds[[i]]$train, family = "binomial"))
-    glm.prob <- suppressWarnings(predict(glm.fit, newdata=frame.folds[[i]]$test, type = "response"))
+    fit.glm <- suppressWarnings(glm(NON_OPERATING ~ ., data = frame.folds[[i]]$train, family = "binomial"))
+    glm.prob <- suppressWarnings(predict(fit.glm, newdata=frame.folds[[i]]$test, type = "response"))
     roc.glm[[i]] <- simple_roc(frame.folds[[i]]$test$NON_OPERATING, glm.prob)
     roc.glm.buckets[[i]] <- divide_roc_data_buckets(roc.glm[[i]], BUCKETS_NUM)
   }
@@ -91,9 +92,9 @@ compare_roc_curves_cv <- function(frame.folds, title){
   roc.tree <- list()
   roc.tree.buckets <- list()
   for(i in 1:length(frame.folds)){
-    tree.fit <- tree(factor(NON_OPERATING) ~ ., data = frame.folds[[i]]$train)
-    tree.pred <- predict(tree.fit, newdata=frame.folds[[i]]$test, type = "vector")
-    roc.tree[[i]] <- simple_roc(frame.folds[[i]]$test$NON_OPERATING, unname(tree.pred[,2]))
+    fit.tree <- tree(factor(NON_OPERATING) ~ ., data = frame.folds[[i]]$train)
+    pred.tree <- predict(fit.tree, newdata=frame.folds[[i]]$test, type = "vector")
+    roc.tree[[i]] <- simple_roc(frame.folds[[i]]$test$NON_OPERATING, unname(pred.tree[,2]))
     roc.tree.buckets[[i]] <- divide_roc_data_buckets(roc.tree[[i]], BUCKETS_NUM)
   }
   roc.tree <- get_roc_mean(roc.tree.buckets)
@@ -103,9 +104,9 @@ compare_roc_curves_cv <- function(frame.folds, title){
   roc.rf <- list()
   roc.rf.buckets <- list()
   for(i in 1:length(frame.folds)){
-    rf.fit <- randomForest(factor(NON_OPERATING) ~ ., data=frame.folds[[i]]$train, importance=TRUE)
-    rf.pred <- predict(rf.fit, newdata=frame.folds[[i]]$test, type = "prob")
-    roc.rf[[i]] <- simple_roc(frame.folds[[i]]$test$NON_OPERATING, unname(rf.pred[,2]))
+    fit.rf <- randomForest(factor(NON_OPERATING) ~ ., data=frame.folds[[i]]$train, importance=TRUE)
+    pred.rf <- predict(fit.rf, newdata=frame.folds[[i]]$test, type = "prob")
+    roc.rf[[i]] <- simple_roc(frame.folds[[i]]$test$NON_OPERATING, unname(pred.rf[,2]))
     roc.rf.buckets[[i]] <- divide_roc_data_buckets(roc.rf[[i]], BUCKETS_NUM)
   }
   roc.rf <- get_roc_mean(roc.rf.buckets)
@@ -147,8 +148,8 @@ compare_roc_curves_imbalanced_cv <- function(frame, folds_num, title){
   roc.nb.buckets <- list()
   for(i in 1:folds_num){
     nb.model <- suppressWarnings(train(factor(NON_OPERATING) ~ ., data=frame[folds[[i]],], 'nb', trControl=trainControl(method='cv', number=10)))
-    nb.pred <- suppressWarnings(predict(nb.model$finalModel, newdata=frame[-folds[[i]],]))
-    roc.nb[[i]] <- simple_roc(frame[-folds[[i]],]$NON_OPERATING, unname(nb.pred$posterior[,2]))
+    pred.nb <- suppressWarnings(predict(nb.model$finalModel, newdata=frame[-folds[[i]],]))
+    roc.nb[[i]] <- simple_roc(frame[-folds[[i]],]$NON_OPERATING, unname(pred.nb$posterior[,2]))
     roc.nb.buckets[[i]] <- divide_roc_data_buckets(roc.nb[[i]], BUCKETS_NUM)
   }
   roc.nb <- get_roc_mean(roc.nb.buckets)
@@ -159,8 +160,8 @@ compare_roc_curves_imbalanced_cv <- function(frame, folds_num, title){
   roc.lda <- list()
   roc.lda.buckets <- list()
   for(i in 1:folds_num){
-    lda.fit <- suppressWarnings(lda(factor(NON_OPERATING) ~ ., data=frame[folds[[i]],]))
-    lda.prob <- suppressWarnings(predict(lda.fit, newdata=frame[-folds[[i]],]))
+    fit.lda <- suppressWarnings(lda(factor(NON_OPERATING) ~ ., data=frame[folds[[i]],]))
+    lda.prob <- suppressWarnings(predict(fit.lda, newdata=frame[-folds[[i]],]))
     roc.lda[[i]] <- simple_roc(frame[-folds[[i]],]$NON_OPERATING, unname(lda.prob$posterior[,2]))
     roc.lda.buckets[[i]] <- divide_roc_data_buckets(roc.lda[[i]], BUCKETS_NUM)
   }
@@ -172,8 +173,8 @@ compare_roc_curves_imbalanced_cv <- function(frame, folds_num, title){
   roc.glm <- list()
   roc.glm.buckets <- list()
   for(i in 1:folds_num){
-    glm.fit <- suppressWarnings(glm(factor(NON_OPERATING) ~ ., data = frame[folds[[i]],], family = "binomial"))
-    glm.prob <- suppressWarnings(predict(glm.fit, newdata=frame[-folds[[i]],], type = "response"))
+    fit.glm <- suppressWarnings(glm(factor(NON_OPERATING) ~ ., data = frame[folds[[i]],], family = "binomial"))
+    glm.prob <- suppressWarnings(predict(fit.glm, newdata=frame[-folds[[i]],], type = "response"))
     roc.glm[[i]] <- simple_roc(frame[-folds[[i]],]$NON_OPERATING, glm.prob)
     roc.glm.buckets[[i]] <- divide_roc_data_buckets(roc.glm[[i]], BUCKETS_NUM)
   }
@@ -185,9 +186,9 @@ compare_roc_curves_imbalanced_cv <- function(frame, folds_num, title){
   roc.tree <- list()
   roc.tree.buckets <- list()
   for(i in 1:folds_num){
-    tree.fit <- tree(factor(NON_OPERATING) ~ ., data = frame[folds[[i]],])
-    tree.pred <- predict(tree.fit, newdata=frame[-folds[[i]],], type = "vector")
-    roc.tree[[i]] <- simple_roc(frame[-folds[[i]],]$NON_OPERATING, unname(tree.pred[,2]))
+    fit.tree <- tree(factor(NON_OPERATING) ~ ., data = frame[folds[[i]],])
+    pred.tree <- predict(fit.tree, newdata=frame[-folds[[i]],], type = "vector")
+    roc.tree[[i]] <- simple_roc(frame[-folds[[i]],]$NON_OPERATING, unname(pred.tree[,2]))
     roc.tree.buckets[[i]] <- divide_roc_data_buckets(roc.tree[[i]], BUCKETS_NUM)
   }
   roc.tree <- get_roc_mean(roc.tree.buckets)
@@ -198,9 +199,9 @@ compare_roc_curves_imbalanced_cv <- function(frame, folds_num, title){
   roc.rf <- list()
   roc.rf.buckets <- list()
   for(i in 1:folds_num){
-    rf.fit <- randomForest(factor(NON_OPERATING) ~ ., data=frame[folds[[i]],], importance=TRUE)
-    rf.pred <- predict(rf.fit, newdata=frame[-folds[[i]],], type = "prob")
-    roc.rf[[i]] <- simple_roc(frame[-folds[[i]],]$NON_OPERATING, unname(rf.pred[,2]))
+    fit.rf <- randomForest(factor(NON_OPERATING) ~ ., data=frame[folds[[i]],], importance=TRUE)
+    pred.rf <- predict(fit.rf, newdata=frame[-folds[[i]],], type = "prob")
+    roc.rf[[i]] <- simple_roc(frame[-folds[[i]],]$NON_OPERATING, unname(pred.rf[,2]))
     roc.rf.buckets[[i]] <- divide_roc_data_buckets(roc.rf[[i]], BUCKETS_NUM)
   }
   roc.rf <- get_roc_mean(roc.rf.buckets)
@@ -210,7 +211,7 @@ compare_roc_curves_imbalanced_cv <- function(frame, folds_num, title){
   # Plotting
   par(mfrow=c(1,2))
   plot_graphs(roc.nb, roc.lda, roc.glm, roc.tree, roc.rf, title, colnames(frame), xlim = c(0,1), ylim = c(0,1), FALSE, "bottomright")
-  plot_graphs(roc.nb, roc.lda, roc.glm, roc.tree, roc.rf, title, colnames(frame), xlim = c(FPR_FROM,1.1*FPR_TO), ylim = c(0,0.7), TRUE, "topright")
+  plot_graphs(roc.nb, roc.lda, roc.glm, roc.tree, roc.rf, title, colnames(frame), xlim = c(FPR_FROM,1.1*FPR_TO), ylim = c(0,0.6), TRUE, "topright")
   
   return(c(roc.nb$pauc[1], roc.lda$pauc[1], roc.glm$pauc[1], roc.tree$pauc[1], roc.rf$pauc[1]))
 }
@@ -355,9 +356,9 @@ choose_RF_threshold <- function(frame, folds_num, fpr_to){
   folds <- createFolds(1:nrow(frame), k=folds_num, list=TRUE, returnTrain = TRUE)
   thresholds <- rep(NA, folds_num)
   for(i in 1:folds_num){
-    rf.fit <- randomForest(factor(NON_OPERATING) ~ ., data=frame[folds[[i]],], importance=TRUE)
-    rf.pred <- predict(rf.fit, newdata=frame[-folds[[i]],], type = "prob")
-    roc.rf <- simple_roc(frame[-folds[[i]],]$NON_OPERATING, unname(rf.pred[,2]))
+    fit.rf <- randomForest(factor(NON_OPERATING) ~ ., data=frame[folds[[i]],], importance=TRUE)
+    pred.rf <- predict(fit.rf, newdata=frame[-folds[[i]],], type = "prob")
+    roc.rf <- simple_roc(frame[-folds[[i]],]$NON_OPERATING, unname(pred.rf[,2]))
     thresholds[i] <- get_prob_threshold(roc.rf, fpr_to)
   }
   return(mean(thresholds))
@@ -386,10 +387,47 @@ estimate_RF_performance <- function(frame, folds_num, fpr_rate){
   return(list(precision=precision, tpr=tpr, fpr=fpr))
 }
 
+fill_missing_data <- function(frame.main, frame.donor){
+  incomplete_row_ids <- frame.main[!complete.cases(frame.main),]$ID
+  for(id in incomplete_row_ids){
+    main.id = which(frame.main$ID==id)
+    donor.id = which(frame.donor$ID==id)
+    # TODO remove this print()
+    print(paste(round(100*which(incomplete_row_ids==id)/length(incomplete_row_ids),2),"%, ID=", id, sep=""))
+    for(column in colnames(frame.main)){
+      if(is.na(frame.main[main.id,column]) && id %in% frame.donor$ID && !is.na(frame.donor[donor.id, column]))
+        frame.main[main.id,column] = frame.donor[donor.id, column]
+    }
+  }
+  return(frame.main)
+}
+
+combine_data_from_all_files <- function(filenames){
+  raw1 <- read.csv(filenames[1], stringsAsFactors = FALSE)
+  final.frame <- feature_engineering_and_selection(raw1)
+  for(file in filenames){
+    raw <- read.csv(file, stringsAsFactors = FALSE)
+    frame <- feature_engineering_and_selection(raw)
+    final.frame <- fill_missing_data(final.frame, frame)
+  }
+  final.frame$ID <- NULL
+  final.frame <- final.frame[complete.cases(final.frame),]
+  return(final.frame)
+}
+
+plot_feature_importance <- function(frame){
+  par(mfrow=c(1,1))
+  fit.rf <- randomForest(factor(NON_OPERATING) ~ ., data=frame, keep.forest=FALSE, importance=TRUE)
+  varImpPlot(fit.rf, pt.cex=1.5, main="")
+  title( main = "Random Forest feature importance", cex.main=1.6)
+  importance(fit.rf)
+}
+
 feature_engineering_and_selection <- function(raw){
   features <- c("PAR_ED_PCT_PS", "TUITIONFEE_PROG", "TUITIONFEE_OUT", "COSTT4_A", "COSTT4_P", "NPT4_PUB", "NPT4_PRIV", "NPT4_PROG", "NPT4_OTHER", "NUM4_PUB", "NUM4_PRIV", "NUM4_PROG", "NUM4_OTHER", "TUITFTE", "INEXPFTE", "RET_PTL4", "RET_PT4", "RET_FTL4", "RET_FT4", "C150_4", "C150_L4", "C150_4_POOLED", "C150_L4_POOLED", "D150_4", "D150_L4", "D150_4_POOLED", "D150_L4_POOLED", "C150_4_AIAN", "C150_4_NHPI", "C150_4_2MOR", "C150_4_NRA", "C150_4_API", "C150_L4_NHPI", "C150_L4_2MOR", "C150_L4_NRA", "C150_4_POOLED_SUPP")
-  frame <- raw[,features]
-  frame$NON_OPERATING <- ifelse(raw.2013[,"CURROPER"]==0, 1, 0)
+  frame <- raw[,c("ï.¿UNITID", features)]
+  colnames(frame)[1] <- "ID"
+  frame$NON_OPERATING <- ifelse(raw[,"CURROPER"]==0, 1, 0)
   frame[,features] <- suppressWarnings(lapply(frame[,features], as.numeric))
   
   frame <- merge_columns(frame, c("COSTT4_A", "COSTT4_P"), "COSTT4")
@@ -402,7 +440,7 @@ feature_engineering_and_selection <- function(raw){
   frame <- merge_columns(frame, c("RET_PTL4", "RET_PT4", "RET_FTL4", "RET_FT4"), "RET")
   frame <- merge_columns(frame, c("C150_4", "C150_L4", "C150_4_POOLED", "C150_L4_POOLED", "C150_4_AIAN", "C150_4_NHPI", "C150_4_2MOR", "C150_4_NRA", "C150_4_API", "C150_L4_NHPI", "C150_L4_2MOR", "C150_L4_NRA", "C150_4_POOLED_SUPP"), "C150")
   frame <- merge_columns(frame, c("D150_4", "D150_L4", "D150_4_POOLED", "D150_L4_POOLED"), "D150")
-  frame <- frame[complete.cases(frame),]
+  #  frame <- frame[complete.cases(frame),]
   
   # Eliminated, since I've focused on lowest 5% AUC instead of global parameters like RSS or R-squared:
   #draw_feature_selection_plots(frame.train)
@@ -414,27 +452,29 @@ feature_engineering_and_selection <- function(raw){
   return(frame)
 }
 
-file.2013 <- "./data/MERGED2013_PP.csv"
-file.2012 <- "./data/MERGED2012_PP.csv"
-raw.2013 <- read.csv(file.2013, stringsAsFactors = FALSE)
-#raw.2012 <- read.csv(file.2012, stringsAsFactors = FALSE)
+filenames <- c("./data/MERGED2013_PP.csv", "./data/MERGED2012_PP.csv", "./data/MERGED2011_PP.csv",
+               "./data/MERGED2010_PP.csv", "./data/MERGED2009_PP.csv", "./data/MERGED2008_PP.csv",
+               "./data/MERGED2007_PP.csv", "./data/MERGED2006_PP.csv", "./data/MERGED2005_PP.csv",
+               "./data/MERGED2004_PP.csv", "./data/MERGED2003_PP.csv", "./data/MERGED2002_PP.csv",
+               "./data/MERGED2001_PP.csv", "./data/MERGED2000_PP.csv", "./data/MERGED1999_PP.csv",
+               "./data/MERGED1998_PP.csv", "./data/MERGED1997_PP.csv", "./data/MERGED1996_PP.csv")
 
-frame.2013 <- feature_engineering_and_selection(raw.2013)
+final.frame <- combine_data_from_all_files(filenames)
 
 # Estimating feature importance
-par(mfrow=c(1,1))
-rf.fit <- randomForest(factor(NON_OPERATING) ~ ., data=frame.2013, keep.forest=FALSE, importance=TRUE)
-varImpPlot(rf.fit, pt.cex=1.5, main = "Random Forest feature importance")
-importance(rf.fit)
+plot_feature_importance(final.frame)
 
 # It turned out Random Forest performs better on imbalanced data, so no additional balancing is needed:
-#train_test_frames_folds.2013 <- get_balanced_train_test_frames_cv(frame.2013, 10, 25)
-#aucs <- compare_roc_curves_cv(train_test_frames_folds.2013, paste("Train 1:25, Folds = 10"))
+#train_test_frames_folds <- get_balanced_train_test_frames_cv(final.frame, 10, 25)
+#aucs <- compare_roc_curves_cv(train_test_frames_folds, paste("Train 1:25, Folds = 10"))
 
-aucs <- compare_roc_curves_imbalanced_cv(frame.2013, FOLDS_NUM, paste("Inbalanced. CV", " Train size: ", floor((9/10)*nrow(frame.2013)), " #Predictors: ", length(colnames(frame.2013))-1))
+aucs <- compare_roc_curves_imbalanced_cv(final.frame, FOLDS_NUM, paste("Inbalanced. CV", " Train size: ", floor((9/10)*nrow(final.frame)), " #Predictors: ", length(colnames(final.frame))-1))
 
 # Estimating final performance 
-performance <- estimate_RF_performance(frame.2013, FOLDS_NUM, FPR_TO)
+performance <- estimate_RF_performance(final.frame, FOLDS_NUM, FPR_TO)
 performance$precision
 performance$tpr
 performance$fpr
+
+
+
