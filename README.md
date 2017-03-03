@@ -32,7 +32,7 @@ The features left for the final model (ordered by decreasing importance):
 2. `D150` - Completion rates.
 3. `PAR_ED_PCT_HS` - Percent of students whose parents' highest educational level was is some form of postsecondary education.
 4. `NPT4` - Average net price for Title IV institutions.
-5. `REVENUE_EXPENDITURE` - Net tuition revenue minus instructional expenditures per full-time equivalent student.
+5. `REV_EXP` - Net tuition revenue minus instructional expenditures per full-time equivalent student.
 6. `NUM4` - Number of Title IV students.
 7. `C150` - Completion rates.
 
