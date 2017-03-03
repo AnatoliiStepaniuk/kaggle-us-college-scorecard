@@ -65,6 +65,6 @@ After applying classificator for 2013 data, I've decided to gather additional in
 I've chosen classification probability threshold to achieve FPR around 5% according to aforementioned calculations which turned out to be around 0.132.
 It resulted in following estimations:
 
-**Precision** : `0.27` - More than one quarter of non-operating predictions were correct.
-**TPR(Recall)** : `0.42` - I've been able to correctly predict about a half of all the non-operating schools.
-**FPR** : `0.048` - expected FPR value of around 5%.
+- **Precision** : `0.27` - More than one quarter of non-operating predictions were correct.
+- **TPR(Recall)** : `0.42` - I've been able to correctly predict about a half of all the non-operating schools.
+- **FPR** : `0.048` - expected FPR value of around 5%.
